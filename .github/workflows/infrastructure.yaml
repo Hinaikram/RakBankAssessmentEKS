@@ -1,21 +1,15 @@
-name: Deploy EKS Infrastructure for Spring Boot Application
+name: Terraform CI/CD for EKS
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    inputs:
-      TF_ENVIRONMENT:
-        description: Terraform environment development, QA, Production
-        required: true
-  workflow_dispatch:
-    inputs:
-      TF_ENVIRONMENT:
-        description: Terraform environment Development, QA, Production
-        required: true
+    branches: [main]
 
-permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
   terraform:
@@ -23,13 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: .  # Root folder, where your Terraform files are located
+        working-directory: ./terraform  # Make sure the path to Terraform files is correct
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.6.3
@@ -37,9 +31,9 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init with Backend Config
         run: |
@@ -62,6 +56,7 @@ jobs:
           echo "CLUSTER_NAME=$(terraform output -raw cluster_name)" >> $GITHUB_ENV
 
   build:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
     needs: terraform
 
@@ -75,35 +70,30 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Run Tests
-        run: mvn test --no-transfer-progress
-
-      - name: Build with Maven
+      - name: Build JAR
         run: mvn clean install --no-transfer-progress
 
       - name: Build Docker image
         run: docker build -t springboot-app .
 
-      - name: Log in to Amazon ECR
+      - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Tag Docker image
+      - name: Tag and Push Docker Image
         run: |
           docker tag springboot-app:latest $ECR_URL:${{ github.sha }}
           docker tag springboot-app:latest $ECR_URL:latest
-
-      - name: Push Docker image to ECR
-        run: |
           docker push $ECR_URL:${{ github.sha }}
           docker push $ECR_URL:latest
 
-      - name: Upload JAR artifact
+      - name: Upload JAR Artifact
         uses: actions/upload-artifact@v4
         with:
           name: springboot-app
           path: target/*.jar
 
   deploy:
+    name: Deploy to EKS
     runs-on: ubuntu-latest
     needs: build
 
@@ -111,26 +101,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
+      - name: Set up kubectl
         run: aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
 
-      - name: Deploy Kubernetes Manifests
+      - name: Deploy Kubernetes Resources
         run: |
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/service.yaml
-
-      - name: Update Deployment Image and Restart
-        run: |
           kubectl set image deployment/springboot-app springboot-app=$ECR_URL:${{ github.sha }}
           kubectl rollout restart deployment/springboot-app
-
-      - name: Check Deployment Status
-        run: |
           kubectl rollout status deployment/springboot-app --timeout=300s
