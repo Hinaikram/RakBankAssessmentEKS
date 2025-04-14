@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./  # Update this to the root if your Terraform files are there
+        working-directory: ./  # Change if your Terraform code is not in root
 
     steps:
       - name: Checkout Repository
@@ -27,24 +27,25 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.6.3
+
       - name: Verify Terraform backend variables
-              run: |
-                echo "TF_STATE_S3_BUCKET: ${{ secrets.TF_STATE_S3_BUCKET }}"
-                echo "TF_STATE_FILE_KEY: ${{ secrets.TF_STATE_FILE_KEY }}"
-                echo "TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}"
-                echo "S3_AWS_REGION: ${{ secrets.S3_AWS_REGION }}"
-                echo "AWS_REGION: ${{ secrets.AWS_REGION }}"
-                
-                # Sanity checks
-                if [ -z "${{ secrets.TF_STATE_S3_BUCKET }}" ] || \
-                   [ -z "${{ secrets.TF_STATE_FILE_KEY }}" ] || \
-                   [ -z "${{ secrets.TF_STATE_DYNAMODB_TABLE }}" ] || \
-                   [ -z "${{ secrets.S3_AWS_REGION }}" ]; then
-                  echo "❌ One or more required secrets are missing!"
-                  exit 1
-                else
-                  echo "✅ All required backend secrets are present."
-                fi
+        run: |
+          echo "TF_STATE_S3_BUCKET: ${{ secrets.TF_STATE_S3_BUCKET }}"
+          echo "TF_STATE_FILE_KEY: ${{ secrets.TF_STATE_FILE_KEY }}"
+          echo "TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}"
+          echo "S3_AWS_REGION: ${{ secrets.S3_AWS_REGION }}"
+          echo "AWS_REGION: ${{ secrets.AWS_REGION }}"
+
+          # Sanity checks
+          if [ -z "${{ secrets.TF_STATE_S3_BUCKET }}" ] || \
+             [ -z "${{ secrets.TF_STATE_FILE_KEY }}" ] || \
+             [ -z "${{ secrets.TF_STATE_DYNAMODB_TABLE }}" ] || \
+             [ -z "${{ secrets.S3_AWS_REGION }}" ]; then
+            echo "❌ One or more required secrets are missing!"
+            exit 1
+          else
+            echo "✅ All required backend secrets are present."
+          fi
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
