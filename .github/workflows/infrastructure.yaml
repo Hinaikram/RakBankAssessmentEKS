@@ -10,6 +10,10 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_STATE_S3_BUCKET: ${{ secrets.TF_STATE_S3_BUCKET }}
+  TF_STATE_FILE_KEY: ${{ secrets.TF_STATE_FILE_KEY }}
+  TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
+  S3_AWS_REGION: ${{ secrets.S3_AWS_REGION }}
 
 jobs:
   terraform:
@@ -30,17 +34,17 @@ jobs:
 
       - name: Verify Terraform backend variables
         run: |
-          echo "TF_STATE_S3_BUCKET: ${{ secrets.TF_STATE_S3_BUCKET }}"
-          echo "TF_STATE_FILE_KEY: ${{ secrets.TF_STATE_FILE_KEY }}"
-          echo "TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}"
-          echo "S3_AWS_REGION: ${{ secrets.S3_AWS_REGION }}"
-          echo "AWS_REGION: ${{ secrets.AWS_REGION }}
+          echo "TF_STATE_S3_BUCKET: $TF_STATE_S3_BUCKET"
+          echo "TF_STATE_FILE_KEY: $TF_STATE_FILE_KEY"
+          echo "TF_STATE_DYNAMODB_TABLE: $TF_STATE_DYNAMODB_TABLE"
+          echo "S3_AWS_REGION: $S3_AWS_REGION"
+          echo "AWS_REGION: $AWS_REGION"
           
           # Sanity checks
-          if [ -z "${{ secrets.TF_STATE_S3_BUCKET }}" ] || \
-             [ -z "${{ secrets.TF_STATE_FILE_KEY }}" ] || \
-             [ -z "${{ secrets.TF_STATE_DYNAMODB_TABLE }}" ] || \
-             [ -z "${{ secrets.S3_AWS_REGION }}" ]; then
+          if [ -z "$TF_STATE_S3_BUCKET" ] || \
+             [ -z "$TF_STATE_FILE_KEY" ] || \
+             [ -z "$TF_STATE_DYNAMODB_TABLE" ] || \
+             [ -z "$S3_AWS_REGION" ]; then
             echo "❌ One or more required secrets are missing!"
             exit 1
           else
@@ -50,17 +54,17 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init with Backend Config
         run: |
           terraform init \
-            -backend-config="bucket=${{ secrets.TF_STATE_S3_BUCKET }}" \
-            -backend-config="key=${{ secrets.TF_STATE_FILE_KEY }}" \
-            -backend-config="region=${{ secrets.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_STATE_DYNAMODB_TABLE }}"
+            -backend-config="bucket=$TF_STATE_S3_BUCKET" \
+            -backend-config="key=$TF_STATE_FILE_KEY" \
+            -backend-config="region=$S3_AWS_REGION" \
+            -backend-config="dynamodb_table=$TF_STATE_DYNAMODB_TABLE"
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan
@@ -123,9 +127,9 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up kubectl
         run: aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
