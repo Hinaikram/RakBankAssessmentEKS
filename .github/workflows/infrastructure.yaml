@@ -1,46 +1,120 @@
-name: Deploy EKS Infrastructure for spring boot application
+name: Terraform CI/CD for EKS
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    inputs:
-      TF_ENVIRONMENT:
-        description: Terraform environment development, QA, Production
-        required: true
-  workflow_dispatch:
-    inputs:
-      TF_ENVIRONMENT:
-        description: Terraform environment Development, QA, Production
-        required: true
+    branches: [main]
 
-permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  deploy-infrastructure:
-    uses: hinaikramm/reusable-template/.github/workflows/infrastructure.yml@main
-    with:
-      TF_ENVIRONMENT: ${{ github.event.inputs.TF_ENVIRONMENT }}
-    secrets:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      S3_AWS_REGION: ${{ secrets.S3_AWS_REGION }}
-      TF_STATE_S3_BUCKET: ${{ secrets.TF_STATE_S3_BUCKET }}
-      TF_STATE_FILE_KEY: ${{ secrets.TF_STATE_FILE_KEY }}
-      TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      NODE_ROLE_ARN: ${{ secrets.NODE_ROLE_ARN }}
-      MASTER_ROLE_ARN: ${{ secrets.MASTER_ROLE_ARN }}
-      KEY_NAME: ${{ secrets.KEY_NAME }}
-      USER_1_ARN: ${{ secrets.USER_1_ARN }}
-      USER_1_USERNAME: ${{ secrets.USER_1_USERNAME }}
-      USER_2_ARN: ${{ secrets.USER_2_ARN }}
-      USER_2_USERNAME: ${{ secrets.USER_2_USERNAME }}
-      CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
-      CLUSTER_VERSION: ${{ secrets.CLUSTER_VERSION }}
-      NODE_GROUP_NAME: ${{ secrets.NODE_GROUP_NAME }}
-      VPC_NAME: ${{ secrets.VPC_NAME }}
-      BASTION_NAME: ${{ secrets.BASTION_NAME }}
-      KUBECONFIG_PATH: ${{ secrets.KUBECONFIG_PATH }}
-      CLUSTER_ALIAS: ${{ secrets.CLUSTER_ALIAS }}
-      AWS_Access_ROLE_ARN: ${{ secrets.AWS_Access_ROLE_ARN }}
+  terraform:
+    name: Terraform Deploy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init with Backend Config
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_S3_BUCKET }}" \
+            -backend-config="key=${{ secrets.TF_STATE_FILE_KEY }}" \
+            -backend-config="region=${{ secrets.S3_AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_STATE_DYNAMODB_TABLE }}"
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Export Terraform Outputs
+        id: tf_outputs
+        run: |
+          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=$(terraform output -raw cluster_name)" >> $GITHUB_ENV
+
+  build:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build JAR
+        run: mvn clean install --no-transfer-progress
+
+      - name: Build Docker image
+        run: docker build -t springboot-app .
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Tag and Push Docker Image
+        run: |
+          docker tag springboot-app:latest $ECR_URL:${{ github.sha }}
+          docker tag springboot-app:latest $ECR_URL:latest
+          docker push $ECR_URL:${{ github.sha }}
+          docker push $ECR_URL:latest
+
+      - name: Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: springboot-app
+          path: target/*.jar
+
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up kubectl
+        run: aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME
+
+      - name: Deploy Kubernetes Resources
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/service.yaml
+          kubectl set image deployment/springboot-app springboot-app=$ECR_URL:${{ github.sha }}
+          kubectl rollout restart deployment/springboot-app
+          kubectl rollout status deployment/springboot-app --timeout=300s
