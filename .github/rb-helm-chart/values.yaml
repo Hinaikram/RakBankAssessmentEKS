@@ -1,0 +1,12 @@
+node_role_arn: "arn:aws:iam::123456789012:role/NodeRole"
+master_role_arn: "arn:aws:iam::123456789012:role/MasterRole"
+users:
+  - user_arn: "arn:aws:iam::123456789012:user/user1"
+    username: "user1"
+    groups:
+      - "system:masters"
+      - "group1"
+  - user_arn: "arn:aws:iam::123456789012:user/user2"
+    username: "user2"
+    groups:
+      - "group2"

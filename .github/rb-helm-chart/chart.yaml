@@ -1,0 +1,4 @@
+apiVersion: v2
+name: aws-auth-config
+description: A Helm chart for managing the AWS Auth ConfigMap for EKS.
+version: 1.0.0
