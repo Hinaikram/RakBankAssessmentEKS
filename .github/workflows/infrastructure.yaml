@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./terraform  # Make sure the path to Terraform files is correct
+        working-directory: ./  # Update this to the root if your Terraform files are there
 
     steps:
       - name: Checkout Repository
