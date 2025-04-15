@@ -1,4 +1,4 @@
-# Setting up IAM Policies
+# Setting up IAM Policies for EKS Master Role
 resource "aws_iam_role" "eks_master_role" {
   name = "eks_master_role"
   assume_role_policy = <<POLICY
@@ -37,18 +37,18 @@ resource "aws_iam_role_policy_attachment" "eks_master_policy_service" {
   role       = aws_iam_role.eks_master_role.name
 }
 
-# EKS Node Policies
+# Setting up IAM Policies for EKS Node Role
 resource "aws_iam_role" "eks_node_role" {
   name = "eks_node_role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
+        Effect    = "Allow",
         Principal = {
           Service = "ec2.amazonaws.com"
         },
-        Action = "sts:AssumeRole"
+        Action   = "sts:AssumeRole"
       }
     ]
   })
@@ -58,7 +58,9 @@ resource "aws_iam_role_policy_attachment" "eks_node_policies" {
   for_each = toset([
     "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/AmazonS3FullAccess", # Optional: Add additional permissions if required
+    "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy" # Optional: For CloudWatch Agent monitoring
   ])
   policy_arn = each.value
   role       = aws_iam_role.eks_node_role.name

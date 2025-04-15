@@ -1,6 +1,6 @@
 # Creating EKS Cluster
 resource "aws_eks_cluster" "rb_eks_cluster1" {
-  name     = var.cluster_name
+  name     = "rb_eks_cluster1"  # Directly specifying the cluster name
   role_arn = aws_iam_role.eks_master_role.arn
   version  = var.cluster_version
 
@@ -25,7 +25,7 @@ resource "aws_eks_cluster" "rb_eks_cluster1" {
 
 # Private Node Group
 resource "aws_eks_node_group" "eks_ng_private" {
-  cluster_name    = aws_eks_cluster.rb_eks_cluster.name
+  cluster_name    = aws_eks_cluster.rb_eks_cluster1.name  # Updated to reference the correct cluster name
   node_group_name = var.node_group_name
   node_role_arn   = aws_iam_role.eks_node_role.arn
   subnet_ids      = var.private_subnet_ids
@@ -54,20 +54,19 @@ resource "aws_eks_node_group" "eks_ng_private" {
   ]
 }
 
-data "aws_partition" "current" {}
-
+# OIDC Provider
 resource "aws_iam_openid_connect_provider" "oidc_provider" {
   client_id_list  = ["sts.${data.aws_partition.current.dns_suffix}"]
   thumbprint_list = [var.eks_oidc_root_ca_thumbprint]
-  url             = aws_eks_cluster.rb_eks_cluster.identity[0].oidc[0].issuer
+  url             = aws_eks_cluster.rb_eks_cluster1.identity[0].oidc[0].issuer  # Updated to match cluster name
 }
 
+# Cluster Authentication
 data "aws_eks_cluster_auth" "eks_cluster" {
-  name = aws_eks_cluster.rb_eks_cluster.name
+  name = aws_eks_cluster.rb_eks_cluster1.name  # Updated to match cluster name
 }
 
+# Kubernetes Provider
 provider "kubernetes" {
-  host                   = aws_eks_cluster.rb_eks_cluster.endpoint
-  cluster_ca_certificate = base64decode(aws_eks_cluster.rb_eks_cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.eks_cluster.token
-}
+  host                   = aws_eks_cluster.rb_eks_cluster1.endpoint  # Updated to match cluster name
+  cluster_ca_certificate = base64decode(aws_eks_cluster.rb
