@@ -1,3 +1,15 @@
+
+data "aws_partition" "current" {}
+
+# EKS IAM OIDC provider resource
+resource "aws_iam_openid_connect_provider" "oidc_provider" {
+  client_id_list  = ["sts.${data.aws_partition.current.dns_suffix}"]
+  thumbprint_list = [var.eks_oidc_root_ca_thumbprint]
+  url             = aws_eks_cluster.rb_eks_cluster1.identity[0].oidc[0].issuer
+}
+
+
+
 # Creating EKS Cluster
 resource "aws_eks_cluster" "rb_eks_cluster1" {
   name     = "rb_eks_cluster1"  # Directly specifying the cluster name as 'rb_eks_cluster1'
