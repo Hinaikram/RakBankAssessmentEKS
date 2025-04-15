@@ -1,13 +1,13 @@
 output "eks_cluster_name" {
-  value = aws_eks_cluster.rb_eks_cluster.name
+  value = aws_eks_cluster.rb_eks_cluster1.name 
 }
 
 output "eks_cluster_endpoint" {
-  value = aws_eks_cluster.rb_eks_cluster.endpoint
+  value = aws_eks_cluster.rb_eks_cluster1.endpoint
 }
 
 output "eks_cluster_arn" {
-  value = aws_eks_cluster.rb_eks_cluster.arn
+  value = aws_eks_cluster.rb_eks_cluster1.arn  
 }
 
 output "aws_iam_openid_connect_provider_arn" {
