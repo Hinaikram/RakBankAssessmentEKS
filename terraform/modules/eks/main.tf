@@ -35,7 +35,7 @@ resource "aws_eks_cluster" "rb_eks_cluster1" {
 
 # Private Node Group
 resource "aws_eks_node_group" "eks_ng_private" {
-  cluster_name    = aws_eks_cluster.rb_eks_cluster1.name  # Reference the specific cluster name 'rb_eks_cluster1'
+  cluster_name    = aws_eks_cluster.rb_eks_cluster1.name 
   node_group_name = var.node_group_name
   node_role_arn   = aws_iam_role.eks_node_role.arn
   subnet_ids      = var.private_subnet_ids
