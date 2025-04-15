@@ -1,8 +1,7 @@
-name: Terraform EKS Deployment
+name: Terraform Destroy EKS Infrastructure
 
 on:
-  workflow_dispatch:
-  
+  workflow_dispatch:  # Manual trigger
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -12,11 +11,10 @@ env:
   TF_STATE_FILE_KEY: ${{ secrets.TF_STATE_FILE_KEY }}
   TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
   S3_AWS_REGION: ${{ secrets.S3_AWS_REGION }}
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}  # Add your AWS account ID as a secret
 
 jobs:
-  terraform:
-    name: Terraform Deploy to EKS
+  destroy:
+    name: Terraform Destroy
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,7 +36,7 @@ jobs:
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Terraform Init with S3 Backend
+      - name: Terraform Init with Backend
         run: |
           terraform init \
             -backend-config="bucket=${TF_STATE_S3_BUCKET}" \
@@ -46,12 +44,5 @@ jobs:
             -backend-config="region=${S3_AWS_REGION}" \
             -backend-config="dynamodb_table=${TF_STATE_DYNAMODB_TABLE}"
 
-      - name: Import Existing IAM Role if it Exists
-        run: |
-          terraform import aws_iam_role.eks_master_role arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/eks_master_role || echo "No existing IAM role found, creating a new one."
-
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
