@@ -1,4 +1,4 @@
-#adding the provider details
+# Adding the provider details
 terraform {
   required_providers {
     aws = {
@@ -14,14 +14,11 @@ terraform {
 
 provider "aws" {
   region = var.region
-
-
 }
 
 provider "kubernetes" {
   config_path    = var.kubeconfig_path
   config_context = var.cluster_name
-
 }
 
 # VPC Module configuration
@@ -66,7 +63,5 @@ module "eks" {
   environment                          = var.environment
   cluster_alias                        = var.cluster_alias
   region                               = var.region
-
-
 }
 
