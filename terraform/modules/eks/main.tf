@@ -58,17 +58,17 @@ resource "aws_eks_node_group" "eks_ng_private" {
 resource "aws_iam_openid_connect_provider" "oidc_provider" {
   client_id_list  = ["sts.${data.aws_partition.current.dns_suffix}"]
   thumbprint_list = [var.eks_oidc_root_ca_thumbprint]
-  url             = aws_eks_cluster.rb_eks_cluster1.identity[0].oidc[0].issuer  # Reference 'rb_eks_cluster1'
+  url             = aws_eks_cluster.rb_eks_cluster1.identity[0].oidc[0].issuer 
 }
 
 # Cluster Authentication
 data "aws_eks_cluster_auth" "eks_cluster" {
-  name = aws_eks_cluster.rb_eks_cluster1.name  # Reference 'rb_eks_cluster1'
+  name = aws_eks_cluster.rb_eks_cluster1.name  # Reference the specific cluster name 'rb_eks_cluster1'
 }
 
 # Kubernetes Provider
 provider "kubernetes" {
-  host                   = aws_eks_cluster.rb_eks_cluster1.endpoint  # Reference 'rb_eks_cluster1'
+  host                   = aws_eks_cluster.rb_eks_cluster1.endpoint  
   cluster_ca_certificate = base64decode(aws_eks_cluster.rb_eks_cluster1.certificate_authority[0].data)
   token                  = data.aws_eks_cluster_auth.eks_cluster.token
 }
