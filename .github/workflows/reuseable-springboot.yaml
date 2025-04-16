@@ -9,6 +9,10 @@ on:
         required: true
       ECR_URL:
         required: true
+      EKS_CLUSTER_NAME:
+        required: true
+      AWS_REGION:
+        required: true
 
 jobs:
   springboot:
@@ -23,13 +27,13 @@ jobs:
           java-version: '17'
 
       - name: Build Spring Boot App
-        run: mvn clean install --no-transfer-progress
+        run: mvn clean install spring-boot:repackage --no-transfer-progress
 
       - uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - uses: aws-actions/amazon-ecr-login@v1
 
@@ -40,3 +44,24 @@ jobs:
           docker tag springboot-app:latest ${{ secrets.ECR_URL }}:latest
           docker push ${{ secrets.ECR_URL }}:${{ github.sha }}
           docker push ${{ secrets.ECR_URL }}:latest
+
+      - name: Configure kubectl to use EKS
+        run: |
+          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+
+      - name: Apply Kubernetes Deployment
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+
+      - name: List deployments and pods (debug)
+        run: |
+          kubectl get deployments -n default
+          kubectl get pods -n default
+
+      - name: Set image for Spring Boot app in EKS (default namespace)
+        run: |
+          kubectl set image deployment/springboot-app springboot-app=${{ secrets.ECR_URL }}:${{ github.sha }} -n default
+          kubectl rollout status deployment/springboot-app -n default
+
+      - name: Notify success
+        run: echo "Spring Boot application deployed to EKS successfully! 🚀"
